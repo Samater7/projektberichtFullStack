@@ -59,7 +59,7 @@ CURRENT_USER=$USER
 # Using EOF to create a multi-line string for the service file.
 sudo bash -c "cat > /etc/systemd/system/llm-api.service <<EOF
 [Unit]
-Description=Lokale LLM API mit FastAPI
+Description=Local LLM API with FastAPI
 After=network.target
 
 [Service]
