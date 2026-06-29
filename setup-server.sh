@@ -12,7 +12,7 @@ echo "=== Checking and Installing Ollama ==="
 if ! command -v ollama >/dev/null 2>&1; then
     echo "Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
-    echo "=== Lade KI-Modell herunter ==="
+    echo "=== Downloading AI Model ==="
     ollama pull llama3.2:1b
 else
     echo "Ollama is already installed. Skipping..."
@@ -27,6 +27,24 @@ if ! command -v cloudflared >/dev/null 2>&1; then
     rm cloudflared.deb
 else
     echo "Cloudflared is already installed. Skipping..."
+fi
+
+echo "=== Setting up Python Virtual Environment ==="
+# Check if the .venv folder does not exist yet
+if [ ! -d ".venv" ]; then
+    echo "Creating new virtual environment..."
+    python3 -m venv .venv
+else
+    echo "Virtual environment already exists."
+fi
+
+echo "=== Install Python Dependencies ==="
+if [ -f "requirements.txt" ]; then
+    # Activate the environment and install the packages
+    source ".venv/bin/activate"
+    pip install -r requirements.txt
+else
+    echo "Warning: No requirements.txt found!"
 fi
 
 echo "=== Setup successful! ==="
