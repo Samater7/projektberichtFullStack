@@ -1,5 +1,8 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import List
 import httpx
@@ -9,7 +12,22 @@ app = FastAPI(
     description="Asynchronous FastAPI backend for handling chat requests to Ollama on a Raspberry Pi with 4GB RAM.",
 )
 
-# 1. CORS-configuration
+# Extract the real client IP address, when behind Cloudflare
+def get_real_ip(request: Request):
+    
+    if "cf-connecting-ip" in request.headers:
+        return request.headers["cf-connecting-ip"]
+    return get_remote_address(request) # Fallback for local testing
+
+# Initialize the Limiter with the custom key function
+limiter = Limiter(key_func=get_real_ip)
+
+# Rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# CORS-configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], # Allow all origins for development; in production, specify your frontend URL
@@ -18,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Datavalidation via Pydantic 
+# Datavalidation via Pydantic 
 # Define structures for incoming chat messages and requests
 class ChatMessage(BaseModel):
     role: str     # "user" or "assistant"
@@ -31,49 +49,41 @@ class ChatRequest(BaseModel):
 MAX_HISTORY_MESSAGES = 6
 OLLAMA_API_URL = "http://localhost:11434/api/chat"
 
+
 @app.post("/api/chat")
-async def chat_endpoint(request: ChatRequest):
-    """
-    Takes the chat history, truncates it to the RAM limit of the Pi,
-    and forwards the request asynchronously to Ollama.
-    """
+@limiter.limit("2/30seconds")
+async def chat_endpoint(request: Request, chat_data: ChatRequest):
+    
     try:
-        # 3. Sliding Window protection for chat history
-        # If the history is longer than the limit, the oldest message gets truncated.
-        # We keep the newest X messages.
-        incoming_history = request.messages
+        incoming_history = chat_data.messages
         if len(incoming_history) > MAX_HISTORY_MESSAGES:
             protected_history = incoming_history[-MAX_HISTORY_MESSAGES:]
         else:
             protected_history = incoming_history
 
-        # 4. Prepare the payload for Ollama API
-        # Mapping the Pydantic model to a standard Python dictionary for the API
         ollama_payload = {
-            "model": "llama3.2:1b", # Recommended, extremely lightweight model for 4GB RAM
+            "model": "llama3.2:1b", 
             "messages": [{"role": msg.role, "content": msg.content} for msg in protected_history],
-            "stream": False # Waiting for the full response before returning to the client, at least for now
+            "stream": False
         }
 
-        # 5. Asynchronous call to Ollama API using httpx
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(OLLAMA_API_URL, json=ollama_payload)
             
             if response.status_code != 200:
-                raise HTTPException(status_code=500, detail="Ollama hat einen Fehler gemeldet.")
+                raise HTTPException(status_code=500, detail="Ollama API error")
             
             ollama_data = response.json()
             
-            # Extracting the model's response and return it structured
             return {
                 "reply": ollama_data["message"]["content"],
-                "history_length_sent": len(protected_history) # Helpful for debugging in the frontend
+                "history_length_sent": len(protected_history) # send history length for debugging
             }
 
     except httpx.RequestError as exc:
-        raise HTTPException(status_code=503, detail=f"Ollama API nicht erreichbar: {exc}")
+        raise HTTPException(status_code=503, detail="Ollama API not reachable")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Interner Serverfehler: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/health")
 async def health_check():
