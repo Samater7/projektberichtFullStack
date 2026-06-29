@@ -48,3 +48,34 @@ else
 fi
 
 echo "=== Setup successful! ==="
+
+echo "=== Setting up systemd Service ==="
+# Set the current directory and user to set up the systemd service correctly
+CURRENT_DIR=$(pwd)
+CURRENT_USER=$USER
+
+# Create a systemd service file for the FastAPI application
+# Note: This will run the FastAPI app on localhost:8000, which is then proxied by Cloudflare Tunnel.
+# Using EOF to create a multi-line string for the service file.
+sudo bash -c "cat > /etc/systemd/system/llm-api.service <<EOF
+[Unit]
+Description=Lokale LLM API mit FastAPI
+After=network.target
+
+[Service]
+User=$CURRENT_USER
+WorkingDirectory=$CURRENT_DIR
+EnvironmentFile=$CURRENT_DIR/.env
+ExecStart=$CURRENT_DIR/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF"
+
+# Reload systemd to recognize the new service, enable it to start on boot, and start the service (--no-pager important)
+sudo systemctl daemon-reload
+sudo systemctl enable llm-api
+sudo systemctl restart llm-api
+sudo systemctl status llm-api --no-pager
