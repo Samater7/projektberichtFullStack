@@ -1,31 +1,32 @@
 #!/bin/bash
-# setup-server.sh: Provisioniert den Raspberry Pi für das LLM-Projekt
 
-# 1. Sicherheitsnetz: Skript bricht bei Fehlern lautstark ab
+# Script fails loudly on errors
 set -euo pipefail
 
-echo "=== Aktualisiere Systempakete ==="
+echo "=== Update System Packages ==="
 sudo apt update
 sudo apt install -y git python3 python3-venv curl
 
-echo "=== Prüfe und installiere Ollama ==="
-# Wir prüfen, ob der Befehl 'ollama' schon existiert (Idempotenz)
+echo "=== Checking and Installing Ollama ==="
+# Checking if Ollama is installed, if not, install it
 if ! command -v ollama >/dev/null 2>&1; then
-    echo "Ollama wird installiert..."
+    echo "Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
+    echo "=== Lade KI-Modell herunter ==="
+    ollama pull llama3.2:1b
 else
-    echo "Ollama ist bereits installiert. Überspringe..."
+    echo "Ollama is already installed. Skipping..."
 fi
 
-echo "=== Prüfe und installiere Cloudflared ==="
+echo "=== Checking and Installing Cloudflared ==="
 if ! command -v cloudflared >/dev/null 2>&1; then
-    echo "Cloudflared wird heruntergeladen und installiert (ARM64)..."
-    # Lädt das Paket für 64-Bit ARM Prozessoren (Raspberry Pi 4/5 mit 64-bit OS) herunter
+    echo "Installing Cloudflared..."
+    # Install Cloudflared for ARM64 architecture
     curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
     sudo dpkg -i cloudflared.deb
     rm cloudflared.deb
 else
-    echo "Cloudflared ist bereits installiert. Überspringe..."
+    echo "Cloudflared is already installed. Skipping..."
 fi
 
-echo "=== Setup erfolgreich abgeschlossen! ==="
+echo "=== Setup successful! ==="
