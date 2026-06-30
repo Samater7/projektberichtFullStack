@@ -172,8 +172,7 @@ AccuracySec=1s
 WantedBy=timers.target
 EOF"
 
-# Make the auto-deploy script executable
-chmod +x "$CURRENT_DIR/deploy/auto-deploy.sh"
+
 
 # Reload systemd to recognize the new timer, enable it to start on boot, and start the timer
 sudo systemctl daemon-reload
