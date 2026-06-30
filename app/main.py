@@ -100,7 +100,7 @@ async def chat_endpoint(
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(OLLAMA_API_URL, json=ollama_payload)
             
-             if response.status_code != 200:
+            if response.status_code != 200:
                 error_msg = response.text
                 raise HTTPException(status_code=500, detail=f"Ollama API error: {response.status_code} - {error_msg}")
             
