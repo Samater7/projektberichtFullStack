@@ -79,3 +79,61 @@ sudo systemctl daemon-reload
 sudo systemctl enable llm-api
 sudo systemctl restart llm-api
 sudo systemctl status llm-api --no-pager
+
+
+echo "=== Generating Cloudflare Tunnel Configuration ==="
+CURRENT_USER=$USER
+CLOUDFLARED_DIR="/home/$CURRENT_USER/.cloudflared"
+
+# Create the .cloudflared directory if it doesn't exist
+mkdir -p "$CLOUDFLARED_DIR"
+
+# Check if the .env file exists and source it to get TUNNEL_UUID and DOMAIN_NAME
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    set -a; source "$SCRIPT_DIR/.env"; set +a
+    
+    if [ -n "${TUNNEL_UUID:-}" ] && [ -n "${DOMAIN_NAME:-}" ]; then
+        # Generate the config.yml file for cloudflared dynamically using the values from the .env file
+        cat > "$CLOUDFLARED_DIR/config.yml" <<EOF
+tunnel: $TUNNEL_UUID
+credentials-file: $CLOUDFLARED_DIR/$TUNNEL_UUID.json
+
+ingress:
+  - hostname: $DOMAIN_NAME
+    service: http://localhost:8000
+  - service: http_status:404
+EOF
+        echo "config.yml successfully generated for $DOMAIN_NAME."
+    else
+        echo "Warning: TUNNEL_UUID or DOMAIN_NAME missing in the .env file!"
+    fi
+else
+    echo "Warning: No .env file found. Skipping config.yml generation."
+fi
+
+
+echo "=== Setting up Cloudflare Tunnel as systemd Service ==="
+CURRENT_USER=$USER
+# Get the path to the cloudflared binary
+CLOUDFLARED_PATH=$(command -v cloudflared)
+
+sudo bash -c "cat > /etc/systemd/system/cloudflared.service <<EOF
+[Unit]
+Description=Cloudflare Tunnel for Projektbericht
+After=network.target
+
+[Service]
+User=$CURRENT_USER
+ExecStart=$CLOUDFLARED_PATH tunnel run projektbericht-tunnel
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF"
+
+# Reload systemd to recognize the new service, enable it to start on boot, and start the service
+sudo systemctl daemon-reload
+sudo systemctl enable cloudflared
+sudo systemctl restart cloudflared
+sudo systemctl status cloudflared --no-pager
