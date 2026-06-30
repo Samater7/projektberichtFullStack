@@ -90,7 +90,7 @@ mkdir -p "$CLOUDFLARED_DIR"
 
 # Check if the .env file exists and source it to get TUNNEL_UUID and DOMAIN_NAME
 if [ -f "$(pwd)/.env" ]; then
-    set -a; source "$(pwd)/.env"; set +a
+    set -a; source "$(pwd)/.env" || true; set +a
     
     if [ -n "${TUNNEL_UUID:-}" ] && [ -n "${DOMAIN_NAME:-}" ]; then
         # Generate the config.yml file for cloudflared dynamically using the values from the .env file
@@ -115,7 +115,7 @@ fi
 echo "=== Setting up Cloudflare Tunnel as systemd Service ==="
 CURRENT_USER=$USER
 # Get the path to the cloudflared binary
-CLOUDFLARED_PATH=$(command -v cloudflared)
+CLOUDFLARED_PATH=$(command -v cloudflared || true)
 
 sudo bash -c "cat > /etc/systemd/system/cloudflared.service <<EOF
 [Unit]
