@@ -23,7 +23,8 @@ REMOTE=$(git rev-parse origin/main)
 if [ "$LOCAL" != "$REMOTE" ]; then
     echo "$(date): New changes detected. Pulling the latest code..."
     
-    # Pull the latest changes from the main branch
+    # Reset local changes and pull the latest changes from the main branch
+    git reset --hard HEAD
     git pull origin main
     
     # Run the setup script to ensure all dependencies are installed and the environment is set up correctly
