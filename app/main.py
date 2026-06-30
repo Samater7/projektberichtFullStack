@@ -6,6 +6,7 @@ from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import List
 import httpx
+import os
 
 app = FastAPI(
     title="Raspberry Pi LLM API",
@@ -26,11 +27,13 @@ limiter = Limiter(key_func=get_real_ip)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+allowed_origins = [url.strip() for url in frontend_url.split(",")]
 
 # CORS-configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for development; in production, specify your frontend URL
+    allow_origins=allowed_origins, # Allow all origins for development; in production, specify your frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
