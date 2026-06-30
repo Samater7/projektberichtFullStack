@@ -137,3 +137,48 @@ sudo systemctl daemon-reload
 sudo systemctl enable cloudflared
 sudo systemctl restart cloudflared
 sudo systemctl status cloudflared --no-pager
+
+
+echo "=== Setting up Auto-Deployment Timer ==="
+CURRENT_USER=$USER
+CURRENT_DIR=$(pwd)
+
+# Setup the systemd service for auto-deployment
+sudo bash -c "cat > /etc/systemd/system/auto-deploy.service <<EOF
+[Unit]
+Description=Automated Git-Pull and Setup for Projektbericht
+After=network.target
+
+[Service]
+Type=oneshot
+User=$CURRENT_USER
+WorkingDirectory=$CURRENT_DIR
+ExecStart=/bin/bash $CURRENT_DIR/deploy/auto-deploy.sh
+EOF"
+
+# Setup the systemd timer to run the auto-deploy service every 5 minutes
+sudo bash -c "cat > /etc/systemd/system/auto-deploy.timer <<EOF
+[Unit]
+Description=Check for GitHub Updates every 5 Minutes
+
+[Timer]
+# Start timer 2 minutes after boot
+OnBootSec=2min
+# Run the timer every 5 minutes
+OnUnitActiveSec=5min
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+EOF"
+
+# Make the auto-deploy script executable
+chmod +x "$CURRENT_DIR/deploy/auto-deploy.sh"
+
+# Reload systemd to recognize the new timer, enable it to start on boot, and start the timer
+sudo systemctl daemon-reload
+sudo systemctl enable auto-deploy.timer
+sudo systemctl restart auto-deploy.timer
+
+echo "Auto-Deployment-Timer erfolgreich eingerichtet!"
+sudo systemctl status auto-deploy.timer --no-pager
