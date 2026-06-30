@@ -89,8 +89,8 @@ CLOUDFLARED_DIR="/home/$CURRENT_USER/.cloudflared"
 mkdir -p "$CLOUDFLARED_DIR"
 
 # Check if the .env file exists and source it to get TUNNEL_UUID and DOMAIN_NAME
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    set -a; source "$SCRIPT_DIR/.env"; set +a
+if [ -f "$(pwd)/.env" ]; then
+    set -a; source "$(pwd)/.env"; set +a
     
     if [ -n "${TUNNEL_UUID:-}" ] && [ -n "${DOMAIN_NAME:-}" ]; then
         # Generate the config.yml file for cloudflared dynamically using the values from the .env file
