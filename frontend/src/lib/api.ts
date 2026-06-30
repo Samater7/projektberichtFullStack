@@ -7,6 +7,7 @@ export interface ChatMessage {
 
 export interface ChatResponse {
   reply: string;
+  session_id: string;
   history_length_sent: number;
 }
 
@@ -40,8 +41,9 @@ export class NetworkError extends Error {
 const REQUEST_TIMEOUT_MS = 60_000;
 
 export async function sendChatMessage(
-  messages: ChatMessage[],
+  message: string,
   apiUrl: string,
+  sessionId: string | null,
   externalSignal?: AbortSignal
 ): Promise<ChatResponse> {
   const controller = new AbortController();
@@ -57,11 +59,10 @@ export async function sendChatMessage(
   }
 
   try {
-    const payloadMessages = messages.map(({ role, content }) => ({ role, content }));
     const response = await fetch(`${apiUrl}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: payloadMessages }),
+      body: JSON.stringify({ new_message: message, session_id: sessionId }),
       signal: controller.signal,
     });
 

@@ -1,12 +1,18 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import httpx
 import os
+from sqlalchemy.orm import Session
+from . import models, database
+from .database import engine, get_db
+import uuid
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Raspberry Pi LLM API",
@@ -40,13 +46,9 @@ app.add_middleware(
 )
 
 # Datavalidation via Pydantic 
-# Define structures for incoming chat messages and requests
-class ChatMessage(BaseModel):
-    role: str     # "user" or "assistant"
-    content: str  # The actual text
-
 class ChatRequest(BaseModel):
-    messages: List[ChatMessage]
+    new_message: str
+    session_id: Optional[str] = None
 
 # Constant to limit the number of messages sent to Ollama, preventing memory overload on the Raspberry Pi
 MAX_HISTORY_MESSAGES = 6
@@ -55,21 +57,45 @@ OLLAMA_API_URL = "http://localhost:11434/api/chat"
 
 @app.post("/api/chat")
 @limiter.limit("2/30seconds")
-async def chat_endpoint(request: Request, chat_data: ChatRequest):
-    
+async def chat_endpoint(
+    request: Request, 
+    chat_data: ChatRequest, 
+    db: Session = Depends(get_db)
+):
     try:
-        incoming_history = chat_data.messages
-        if len(incoming_history) > MAX_HISTORY_MESSAGES:
-            protected_history = incoming_history[-MAX_HISTORY_MESSAGES:]
-        else:
-            protected_history = incoming_history
+        # Determine the session ID: use the provided one or generate a new one if not provided
+        current_session_id = chat_data.session_id
+        if not current_session_id:
+            current_session_id = str(uuid.uuid4())
 
+        # Save the user's message in the database
+        user_msg = models.ChatMessage(
+            session_id=current_session_id, 
+            role="user", 
+            content=chat_data.new_message
+        )
+        db.add(user_msg)
+        db.commit()
+
+        # Retrieve the chat history for the current session, ordered by timestamp
+        history = db.query(models.ChatMessage).filter(
+            models.ChatMessage.session_id == current_session_id
+        ).order_by(models.ChatMessage.timestamp.asc()).all()
+        
+        # Restrict the number of messages sent to Ollama to avoid memory issues on the Raspberry Pi
+        if len(history) > MAX_HISTORY_MESSAGES:
+            protected_history = history[-MAX_HISTORY_MESSAGES:]
+        else:
+            protected_history = history
+
+        # Prepare the payload for Ollama API
         ollama_payload = {
             "model": "llama3.2:1b", 
             "messages": [{"role": msg.role, "content": msg.content} for msg in protected_history],
             "stream": False
         }
 
+        # Send request to Ollama API asynchronously
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(OLLAMA_API_URL, json=ollama_payload)
             
@@ -77,10 +103,22 @@ async def chat_endpoint(request: Request, chat_data: ChatRequest):
                 raise HTTPException(status_code=500, detail="Ollama API error")
             
             ollama_data = response.json()
+            ai_reply_text = ollama_data["message"]["content"]
+
+            # Save the AI's reply in the database
+            ai_msg = models.ChatMessage(
+                session_id=current_session_id, 
+                role="assistant", 
+                content=ai_reply_text
+            )
+            db.add(ai_msg)
+            db.commit()
             
+            # return the AI's reply, the session ID, and the length of the history sent to Ollama
             return {
-                "reply": ollama_data["message"]["content"],
-                "history_length_sent": len(protected_history) # send history length for debugging
+                "reply": ai_reply_text,
+                "session_id": current_session_id,
+                "history_length_sent": len(protected_history)
             }
 
     except httpx.RequestError as exc:

@@ -11,41 +11,58 @@ global.fetch = mockFetch;
 
 describe("sendChatMessage", () => {
   const API_URL = "https://test-api.example.com";
-  const messages = [{ role: "user" as const, content: "Hello" }];
 
   beforeEach(() => {
     mockFetch.mockReset();
   });
 
-  it("sends correct request format", async () => {
+  it("sends correct request format with no session_id", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ reply: "Hi!", history_length_sent: 1 }),
+      json: async () => ({ reply: "Hi!", session_id: "abc-123", history_length_sent: 1 }),
     });
 
-    await sendChatMessage(messages, API_URL);
+    await sendChatMessage("Hello", API_URL, null);
 
     expect(mockFetch).toHaveBeenCalledWith(
       `${API_URL}/api/chat`,
       expect.objectContaining({
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ new_message: "Hello", session_id: null }),
       })
     );
   });
 
-  it("parses a successful response", async () => {
+  it("sends session_id when provided", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: async () => ({ reply: "Hello there!", history_length_sent: 1 }),
+      json: async () => ({ reply: "Hi again!", session_id: "abc-123", history_length_sent: 2 }),
     });
 
-    const result = await sendChatMessage(messages, API_URL);
+    await sendChatMessage("Follow up", API_URL, "abc-123");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      `${API_URL}/api/chat`,
+      expect.objectContaining({
+        body: JSON.stringify({ new_message: "Follow up", session_id: "abc-123" }),
+      })
+    );
+  });
+
+  it("parses a successful response including session_id", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ reply: "Hello there!", session_id: "sess-456", history_length_sent: 1 }),
+    });
+
+    const result = await sendChatMessage("Hello", API_URL, null);
 
     expect(result.reply).toBe("Hello there!");
+    expect(result.session_id).toBe("sess-456");
     expect(result.history_length_sent).toBe(1);
   });
 
@@ -56,15 +73,9 @@ describe("sendChatMessage", () => {
       headers: new Headers({ "Retry-After": "15" }),
     });
 
-    await expect(sendChatMessage(messages, API_URL)).rejects.toThrow(
+    await expect(sendChatMessage("Hello", API_URL, null)).rejects.toThrow(
       RateLimitError
     );
-
-    try {
-      await sendChatMessage(messages, API_URL);
-    } catch {
-      // First call already threw; reset and try again for assertion
-    }
 
     // Re-mock and test the retry-after value
     mockFetch.mockResolvedValueOnce({
@@ -74,7 +85,7 @@ describe("sendChatMessage", () => {
     });
 
     try {
-      await sendChatMessage(messages, API_URL);
+      await sendChatMessage("Hello", API_URL, null);
     } catch (error) {
       expect(error).toBeInstanceOf(RateLimitError);
       expect((error as RateLimitError).retryAfterSeconds).toBe(15);
@@ -89,7 +100,7 @@ describe("sendChatMessage", () => {
     });
 
     try {
-      await sendChatMessage(messages, API_URL);
+      await sendChatMessage("Hello", API_URL, null);
     } catch (error) {
       expect(error).toBeInstanceOf(RateLimitError);
       expect((error as RateLimitError).retryAfterSeconds).toBe(30);
@@ -102,7 +113,7 @@ describe("sendChatMessage", () => {
       status: 503,
     });
 
-    await expect(sendChatMessage(messages, API_URL)).rejects.toThrow(
+    await expect(sendChatMessage("Hello", API_URL, null)).rejects.toThrow(
       ServerError
     );
   });
@@ -115,7 +126,7 @@ describe("sendChatMessage", () => {
     });
 
     try {
-      await sendChatMessage(messages, API_URL);
+      await sendChatMessage("Hello", API_URL, null);
     } catch (error) {
       expect(error).toBeInstanceOf(ServerError);
       expect((error as ServerError).message).toBe("Ollama API error");
@@ -126,7 +137,7 @@ describe("sendChatMessage", () => {
   it("throws NetworkError on fetch failure", async () => {
     mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
-    await expect(sendChatMessage(messages, API_URL)).rejects.toThrow(
+    await expect(sendChatMessage("Hello", API_URL, null)).rejects.toThrow(
       NetworkError
     );
   });
@@ -136,7 +147,7 @@ describe("sendChatMessage", () => {
     mockFetch.mockRejectedValueOnce(abortError);
 
     try {
-      await sendChatMessage(messages, API_URL);
+      await sendChatMessage("Hello", API_URL, null);
     } catch (error) {
       expect(error).toBeInstanceOf(NetworkError);
       expect((error as NetworkError).message).toContain("timed out");

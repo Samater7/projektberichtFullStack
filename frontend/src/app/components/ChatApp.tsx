@@ -9,6 +9,7 @@ import ChatInput from "./ChatInput";
 
 const STORAGE_KEY_MESSAGES = "chat-messages";
 const STORAGE_KEY_THEME = "chat-theme";
+const STORAGE_KEY_SESSION = "chat-session-id";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const HEALTH_CHECK_INTERVAL_MS = 30_000;
 const MAX_HISTORY_MESSAGES = 100;
@@ -38,6 +39,13 @@ export default function ChatApp() {
       return saved === "light" || saved === "dark" ? saved : "dark";
     } catch {
       return "dark";
+    }
+  });
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY_SESSION);
+    } catch {
+      return null;
     }
   });
   const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
@@ -117,7 +125,22 @@ export default function ChatApp() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await sendChatMessage(history, API_URL, abortControllerRef.current.signal);
+      const lastUserMessage = history[history.length - 1];
+      const response = await sendChatMessage(
+        lastUserMessage.content,
+        API_URL,
+        sessionId,
+        abortControllerRef.current.signal
+      );
+
+      // Store session ID from backend
+      setSessionId(response.session_id);
+      try {
+        localStorage.setItem(STORAGE_KEY_SESSION, response.session_id);
+      } catch (e) {
+        console.error("Failed to save session ID to localStorage:", e);
+      }
+
       const assistantMessage: ChatMessage = {
         id: generateId(),
         role: "assistant",
@@ -212,6 +235,7 @@ export default function ChatApp() {
     }
     
     setMessages([]);
+    setSessionId(null);
     
     // Only clear system message if we are not rate limited
     if (!rateLimitedUntil) {
@@ -220,6 +244,7 @@ export default function ChatApp() {
     
     try {
       localStorage.removeItem(STORAGE_KEY_MESSAGES);
+      localStorage.removeItem(STORAGE_KEY_SESSION);
     } catch (e) {
       console.error("Failed to clear localStorage", e);
     }

@@ -40,6 +40,7 @@ describe("ChatApp", () => {
 
     mockSendChatMessage.mockResolvedValueOnce({
       reply: "Hello! I am an AI.",
+      session_id: "test-session-123",
       history_length_sent: 1,
     });
 
@@ -63,6 +64,7 @@ describe("ChatApp", () => {
 
     mockSendChatMessage.mockResolvedValueOnce({
       reply: "Stored reply",
+      session_id: "persist-session-456",
       history_length_sent: 1,
     });
 
@@ -112,6 +114,48 @@ describe("ChatApp", () => {
 
     expect(screen.queryByText("To be cleared")).not.toBeInTheDocument();
     expect(screen.queryByText("Also cleared")).not.toBeInTheDocument();
+    expect(localStorage.getItem("chat-messages")).toBe("[]");
+    expect(localStorage.getItem("chat-session-id")).toBe(null);
+  });
+
+  it("persists session_id to localStorage after successful send", async () => {
+    const user = userEvent.setup();
+
+    mockSendChatMessage.mockResolvedValueOnce({
+      reply: "Response",
+      session_id: "new-session-789",
+      history_length_sent: 1,
+    });
+
+    render(<ChatApp />);
+
+    const input = screen.getByLabelText("Message input");
+    await user.type(input, "Hello");
+    await user.click(screen.getByLabelText("Send message"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Response")).toBeInTheDocument();
+    });
+
+    expect(localStorage.getItem("chat-session-id")).toBe("new-session-789");
+  });
+
+  it("clears session_id from localStorage when clearing history", async () => {
+    const user = userEvent.setup();
+
+    // Set up a session
+    localStorage.setItem("chat-session-id", "existing-session");
+    const savedMessages = [
+      { role: "user", content: "Old message" },
+      { role: "assistant", content: "Old reply" },
+    ];
+    localStorage.setItem("chat-messages", JSON.stringify(savedMessages));
+
+    render(<ChatApp />);
+
+    await user.click(screen.getByLabelText("Clear conversation history"));
+
+    expect(localStorage.getItem("chat-session-id")).toBe(null);
     expect(localStorage.getItem("chat-messages")).toBe("[]");
   });
 
@@ -176,7 +220,7 @@ describe("ChatApp", () => {
     const user = userEvent.setup();
 
     // Create a promise that doesn't resolve immediately
-    let resolveResponse!: (value: { reply: string; history_length_sent: number }) => void;
+    let resolveResponse!: (value: { reply: string; session_id: string; history_length_sent: number }) => void;
     mockSendChatMessage.mockReturnValueOnce(
       new Promise((resolve) => {
         resolveResponse = resolve;
@@ -195,7 +239,7 @@ describe("ChatApp", () => {
     });
 
     // Resolve the response
-    resolveResponse({ reply: "Done", history_length_sent: 1 });
+    resolveResponse({ reply: "Done", session_id: "loading-session", history_length_sent: 1 });
 
     // Input should be re-enabled
     await waitFor(() => {
