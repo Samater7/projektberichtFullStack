@@ -28,7 +28,7 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     git pull origin main
     
     # Run the setup script to ensure all dependencies are installed and the environment is set up correctly
-    ./setup-server.sh
+    bash setup-server.sh
     
     echo "$(date): Deployment completed successfully."
 else
