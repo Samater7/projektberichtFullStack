@@ -2,8 +2,16 @@
 # Force the script to fail loudly on errors
 set -euo pipefail
 
-# Navigate to the project directory
-cd /opt/projektberichtFullstack
+# Determine the directory of the script
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+
+# Derive the project directory from the script directory
+PROJECT_DIR=$(dirname "$SCRIPT_DIR")
+
+# Change to the project directory
+cd "$PROJECT_DIR"
+
+echo "=== Auto-Deploy active in the directory: $PROJECT_DIR ==="
 
 # Fetch the latest changes from the main branch
 git fetch origin main
