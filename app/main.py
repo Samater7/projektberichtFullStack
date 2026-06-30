@@ -13,6 +13,7 @@ from .database import engine, get_db
 import uuid
 
 models.Base.metadata.create_all(bind=engine)
+OLLAMA_MODEL = os.getenv("LLM_MODEL", "llama3.2:1b")
 
 app = FastAPI(
     title="Raspberry Pi LLM API",
@@ -90,7 +91,7 @@ async def chat_endpoint(
 
         # Prepare the payload for Ollama API
         ollama_payload = {
-            "model": "llama3.2:1b", 
+            "model": OLLAMA_MODEL,
             "messages": [{"role": msg.role, "content": msg.content} for msg in protected_history],
             "stream": False
         }

@@ -38,7 +38,7 @@ export class NetworkError extends Error {
   }
 }
 
-const REQUEST_TIMEOUT_MS = 60_000;
+const REQUEST_TIMEOUT_MS = 180_000;
 
 export async function sendChatMessage(
   message: string,

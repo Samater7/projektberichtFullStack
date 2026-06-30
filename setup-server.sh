@@ -13,7 +13,15 @@ if ! command -v ollama >/dev/null 2>&1; then
     echo "Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
     echo "=== Downloading AI Model ==="
-    ollama pull llama3.2:1b
+    MODEL_TO_PULL="qwen2.5:1.5b"
+    
+    # Use a relative path to read the model from .env if present
+    if [ -f ".env" ] && grep -q "^LLM_MODEL=" .env; then
+        MODEL_TO_PULL=$(grep "^LLM_MODEL=" .env | cut -d '=' -f2- | tr -d '"'\''\r')
+    fi
+    
+    echo "Pulling model: $MODEL_TO_PULL"
+    ollama pull "$MODEL_TO_PULL"
 else
     echo "Ollama is already installed. Skipping..."
 fi
