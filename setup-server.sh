@@ -66,7 +66,7 @@ After=network.target
 User=$CURRENT_USER
 WorkingDirectory=$CURRENT_DIR
 EnvironmentFile=$CURRENT_DIR/.env
-ExecStart=$CURRENT_DIR/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+ExecStart=$CURRENT_DIR/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
 Restart=always
 RestartSec=3
 
