@@ -179,5 +179,17 @@ sudo systemctl daemon-reload
 sudo systemctl enable auto-deploy.timer
 sudo systemctl restart auto-deploy.timer
 
+echo "=== Configuring Passwordless Sudo for Auto-Deploy ==="
+CURRENT_USER=$USER
+SYSTEMCTL_PATH=$(which systemctl)
+
+# Create a sudoers rule that allows the current user to restart the llm-api service without a password
+sudo bash -c "cat > /etc/sudoers.d/auto-deploy-$CURRENT_USER <<EOF
+$CURRENT_USER ALL=(ALL) NOPASSWD: $SYSTEMCTL_PATH restart llm-api
+EOF"
+
+# Ensure strict permissions on the sudoers file (required by the system)
+sudo chmod 0440 /etc/sudoers.d/auto-deploy-$CURRENT_USER
+
 echo "Auto-Deployment-Timer erfolgreich eingerichtet!"
 sudo systemctl status auto-deploy.timer --no-pager

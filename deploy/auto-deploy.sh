@@ -27,8 +27,14 @@ if [ "$LOCAL" != "$REMOTE" ]; then
     git reset --hard HEAD
     git pull origin main
     
-    # Run the setup script to ensure all dependencies are installed and the environment is set up correctly
-    bash setup-server.sh
+    echo "$(date): Updating Python dependencies..."
+    # Activate virtual environment and install new packages if requirements.txt changed
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    
+    echo "$(date): Restarting application service..."
+    # Restart the FastAPI service to apply code changes
+    sudo systemctl restart llm-api
     
     echo "$(date): Deployment completed successfully."
 else
