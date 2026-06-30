@@ -7,24 +7,25 @@ echo "=== Update System Packages ==="
 sudo apt update
 sudo apt install -y git python3 python3-venv curl
 
+
 echo "=== Checking and Installing Ollama ==="
-# Checking if Ollama is installed, if not, install it
 if ! command -v ollama >/dev/null 2>&1; then
     echo "Installing Ollama..."
     curl -fsSL https://ollama.com/install.sh | sh
-    echo "=== Downloading AI Model ==="
-    MODEL_TO_PULL="qwen2.5:1.5b"
-    
-    # Use a relative path to read the model from .env if present
-    if [ -f ".env" ] && grep -q "^LLM_MODEL=" .env; then
-        MODEL_TO_PULL=$(grep "^LLM_MODEL=" .env | cut -d '=' -f2- | tr -d '"'\''\r')
-    fi
-    
-    echo "Pulling model: $MODEL_TO_PULL"
-    ollama pull "$MODEL_TO_PULL"
 else
-    echo "Ollama is already installed. Skipping..."
+    echo "Ollama is already installed. Skipping installation..."
 fi
+
+
+echo "=== Downloading AI Model ==="
+MODEL_TO_PULL="qwen2.5:1.5b"
+
+if [ -f ".env" ] && grep -q "^LLM_MODEL=" .env; then
+    MODEL_TO_PULL=$(grep "^LLM_MODEL=" .env | cut -d '=' -f2- | tr -d '"'\''\r')
+fi
+
+echo "Pulling model: $MODEL_TO_PULL"
+ollama pull "$MODEL_TO_PULL"
 
 echo "=== Checking and Installing Cloudflared ==="
 if ! command -v cloudflared >/dev/null 2>&1; then
